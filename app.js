@@ -272,10 +272,18 @@ function renderUI(periods, logs) {
     const avgCycleLength = calculateAdaptiveCycleLength(periods);
     const lastStart = new Date(latestPeriod.start_date);
     const lastEnd = latestPeriod.end_date ? new Date(latestPeriod.end_date) : null;
-    const today = new Date();
-    today.setHours(0,0,0,0);
 
-    const currentDay = Math.floor((today - lastStart) / (1000 * 60 * 60 * 24)) + 1;
+    // Indonesian time (WIB / UTC+7) adjustment
+    const nowUtc = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
+    const idTime = new Date(nowUtc + (3600000 * 7)); 
+    idTime.setHours(0, 0, 0, 0);
+
+    const lastStartLocal = new Date(lastStart);
+    lastStartLocal.setHours(0, 0, 0, 0);
+
+    const diffTime = idTime - lastStartLocal;
+    const currentDay = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
     let currentPhaseKey = "";
     let phaseTitleText = "";
 
@@ -310,7 +318,7 @@ function renderUI(periods, logs) {
     const nextPeriodDate = new Date(lastStart);
     nextPeriodDate.setDate(nextPeriodDate.getDate() + avgCycleLength);
     
-    const daysUntilNext = Math.round((nextPeriodDate - today) / (1000 * 60 * 60 * 24));
+    const daysUntilNext = Math.round((nextPeriodDate - idTime) / (1000 * 60 * 60 * 24));
     nextPeriodDateEl.textContent = `${daysUntilNext} Days`;
     nextPeriodCountdownEl.textContent = formatDateString(nextPeriodDate);
 
@@ -323,7 +331,7 @@ function renderUI(periods, logs) {
 
     ovulationWindowEl.textContent = `${formatDateString(fertileStart)} – ${formatDateString(fertileEnd)}`;
 
-    const todayString = today.toISOString().split('T')[0];
+    const todayString = idTime.toISOString().split('T')[0];
     const todayLog = logs.find(l => l.log_date === todayString);
     renderDynamicTips(currentPhaseKey, todayLog);
 }
@@ -425,7 +433,10 @@ function renderCalendar(periods) {
         gridEl.appendChild(document.createElement("div"));
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const nowUtc = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
+    const idTime = new Date(nowUtc + (3600000 * 7));
+    const todayStr = idTime.toISOString().split('T')[0];
+
     const periodDaysSet = new Set();
     const fertileDaysSet = new Set();
 
