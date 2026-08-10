@@ -197,18 +197,36 @@ window.deleteLog = async function(id) {
     else fetchAndRenderData();
 }
 
-function calculateAdaptiveCycleLength(periods) {
-    if (!periods || periods.length < 2) return 28;
-    let cycleDiffs = [];
-    for (let i = 0; i < periods.length - 1; i++) {
-        if (!periods[i].start_date || !periods[i+1].start_date) continue;
-        const currentStart = new Date(periods[i].start_date);
-        const previousStart = new Date(periods[i+1].start_date);
-        const diffDays = Math.round(Math.abs(currentStart - previousStart) / (1000 * 60 * 60 * 24));
-        if (diffDays >= 21 && diffDays <= 45) cycleDiffs.push(diffDays);
+// Highly accurate metric calculation based on actual historical end dates & non-bleeding gaps
+function getCycleMetrics(periods) {
+    let bleedingDaysArr = [];
+    let nonBleedingDaysArr = [];
+
+    for (let i = 0; i < periods.length; i++) {
+        const p = periods[i];
+        if (p.start_date && p.end_date) {
+            const start = new Date(p.start_date).setHours(0,0,0,0);
+            const end = new Date(p.end_date).setHours(0,0,0,0);
+            const bleedLen = Math.round((end - start) / 86400000) + 1;
+            if (bleedLen > 0 && bleedLen <= 15) bleedingDaysArr.push(bleedLen);
+        }
+
+        if (i < periods.length - 1) {
+            const curr = periods[i];
+            const prev = periods[i+1];
+            if (prev.end_date && curr.start_date) {
+                const prevEnd = new Date(prev.end_date).setHours(0,0,0,0);
+                const currStart = new Date(curr.start_date).setHours(0,0,0,0);
+                const gap = Math.round((currStart - prevEnd) / 86400000) - 1;
+                if (gap >= 10 && gap <= 40) nonBleedingDaysArr.push(gap);
+            }
+        }
     }
-    if (cycleDiffs.length === 0) return 28;
-    return Math.round(cycleDiffs.reduce((a, b) => a + b, 0) / cycleDiffs.length);
+
+    const avgBleeding = bleedingDaysArr.length > 0 ? Math.round(bleedingDaysArr.reduce((a,b)=>a+b,0)/bleedingDaysArr.length) : 6;
+    const avgNonBleeding = nonBleedingDaysArr.length > 0 ? Math.round(nonBleedingDaysArr.reduce((a,b)=>a+b,0)/nonBleedingDaysArr.length) : 22;
+
+    return { avgBleeding, avgNonBleeding, avgCycleLength: avgBleeding + avgNonBleeding };
 }
 
 function formatDateString(dateStr) {
@@ -269,9 +287,8 @@ function renderUI(periods, logs) {
     if (!periods || periods.length === 0) return;
 
     const latestPeriod = periods[0];
-    const avgCycleLength = calculateAdaptiveCycleLength(periods);
+    const { avgBleeding, avgNonBleeding } = getCycleMetrics(periods);
     const lastStart = new Date(latestPeriod.start_date);
-    const lastEnd = latestPeriod.end_date ? new Date(latestPeriod.end_date) : null;
 
     // Indonesian time (WIB / UTC+7) adjustment
     const nowUtc = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
@@ -281,22 +298,36 @@ function renderUI(periods, logs) {
     const lastStartLocal = new Date(lastStart);
     lastStartLocal.setHours(0, 0, 0, 0);
 
-    const diffTime = idTime - lastStartLocal;
+    const diffTime = idTime.getTime() - lastStartLocal.getTime();
     const currentDay = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    let bleedingDays;
+    let isOngoing = !latestPeriod.end_date;
+    
+    if (isOngoing) {
+        // If period hasn't ended, bleeding days stretch dynamically, delaying the next cycle
+        bleedingDays = Math.max(currentDay, avgBleeding); 
+    } else {
+        const leLocal = new Date(latestPeriod.end_date);
+        leLocal.setHours(0, 0, 0, 0);
+        bleedingDays = Math.max(Math.round((leLocal.getTime() - lastStartLocal.getTime()) / 86400000) + 1, 1);
+    }
+
+    // Dynamic Cycle Length: Actual/Ongoing Bleeding length + Historical Non-Bleeding Gap
+    const projectedCycleLength = bleedingDays + avgNonBleeding;
+    const estimatedOvulationDay = Math.max(projectedCycleLength - 14, bleedingDays + 1);
 
     let currentPhaseKey = "";
     let phaseTitleText = "";
 
-    const bleedingDays = lastEnd ? Math.max(Math.floor((lastEnd - lastStart)/(1000*60*60*24)) + 1, 5) : 5;
-    const estimatedOvulationDay = avgCycleLength - 14;
-
+    // Force Menstrual Phase if end date is missing (ongoing), otherwise use accurate math
     if (currentDay < 1) {
         phaseTitleText = "Menstrual Phase";
         currentDayEl.textContent = "Day 1";
         currentPhaseKey = "menstrual";
     } else {
         currentDayEl.textContent = `Day ${currentDay}`;
-        if (currentDay <= bleedingDays) {
+        if (isOngoing || currentDay <= bleedingDays) {
             phaseTitleText = "Menstrual Phase";
             currentPhaseKey = "menstrual";
         } else if (currentDay < estimatedOvulationDay - 3) {
@@ -312,13 +343,13 @@ function renderUI(periods, logs) {
     }
 
     currentPhaseEl.textContent = phaseTitleText;
-
-    renderPhaseClockSVG(currentDay, avgCycleLength, bleedingDays, estimatedOvulationDay);
+    renderPhaseClockSVG(currentDay, projectedCycleLength, bleedingDays, estimatedOvulationDay);
 
     const nextPeriodDate = new Date(lastStart);
-    nextPeriodDate.setDate(nextPeriodDate.getDate() + avgCycleLength);
+    nextPeriodDate.setDate(nextPeriodDate.getDate() + projectedCycleLength);
     
-    const daysUntilNext = Math.round((nextPeriodDate - idTime) / (1000 * 60 * 60 * 24));
+    const nextPeriodLocal = new Date(nextPeriodDate).setHours(0, 0, 0, 0);
+    const daysUntilNext = Math.max(Math.round((nextPeriodLocal - idTime.getTime()) / (1000 * 60 * 60 * 24)), 0);
     nextPeriodDateEl.textContent = `${daysUntilNext} Days`;
     nextPeriodCountdownEl.textContent = formatDateString(nextPeriodDate);
 
@@ -356,9 +387,12 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
     ];
 
     phases.forEach(p => {
-        if (p.end <= p.start) return;
-        const lengthFraction = (p.end - p.start) / totalDays;
-        const offsetFraction = p.start / totalDays;
+        let safeStart = Math.min(p.start, totalDays);
+        let safeEnd = Math.min(p.end, totalDays);
+        if (safeEnd <= safeStart) return;
+
+        const lengthFraction = (safeEnd - safeStart) / totalDays;
+        const offsetFraction = safeStart / totalDays;
 
         const strokeLen = lengthFraction * circumference;
         const strokeDasharray = `${strokeLen} ${circumference - strokeLen}`;
@@ -374,12 +408,15 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
         circle.setAttribute("stroke-dasharray", strokeDasharray);
         circle.setAttribute("stroke-dashoffset", strokeDashoffset);
         circle.setAttribute("stroke-linecap", "round");
+        // Rotates the circle -90 degrees so phase 1 starts cleanly at 12 o'clock
+        circle.setAttribute("transform", "rotate(-90 110 110)");
         svgPhaseSegmentsEl.appendChild(circle);
     });
 
     const safeDay = Math.min(Math.max(currentDay, 1), totalDays);
     const angleFraction = (safeDay - 0.5) / totalDays;
-    const angle = angleFraction * 2 * Math.PI;
+    // Adjust dot coordinate math for -90 degrees offset (-Math.PI/2)
+    const angle = angleFraction * 2 * Math.PI - (Math.PI / 2);
     const dotX = 110 + radius * Math.cos(angle);
     const dotY = 110 + radius * Math.sin(angle);
 
@@ -441,12 +478,12 @@ function renderCalendar(periods) {
     const fertileDaysSet = new Set();
 
     if (periods && periods.length > 0) {
-        const avgCycleLength = calculateAdaptiveCycleLength(periods);
+        const { avgCycleLength } = getCycleMetrics(periods);
         periods.forEach(p => {
             if (!p.start_date) return;
             let start = new Date(p.start_date);
             let end = p.end_date ? new Date(p.end_date) : new Date(start);
-            if (!p.end_date) end.setDate(end.getDate() + 4);
+            if (!p.end_date) end.setDate(end.getDate() + 6); // visual default for ongoing in calendar
 
             let curr = new Date(start);
             while (curr <= end) {
