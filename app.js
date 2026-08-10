@@ -31,9 +31,27 @@ let selectedFlow = "";
 let selectedSeverity = "Mild / None";
 let selectedMood = "Calm & Balanced";
 
+// Helper: Parse YYYY-MM-DD string as pure local midnight to avoid UTC offsets
+function parseLocalDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return new Date(dateStr);
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 0, 0, 0, 0);
+}
+
+// Helper: Get today's local midnight date
+function getTodayLocalDate() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     if (singleDateInput) {
-        singleDateInput.value = new Date().toISOString().split('T')[0];
+        const today = getTodayLocalDate();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        singleDateInput.value = `${yyyy}-${mm}-${dd}`;
     }
 
     fetchAndRenderData();
@@ -46,12 +64,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    document.getElementById("prev-month").addEventListener("click", () => {
+    document.getElementById("prev-month")?.addEventListener("click", () => {
         calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1);
         renderCalendar(globalPeriodsCache);
     });
 
-    document.getElementById("next-month").addEventListener("click", () => {
+    document.getElementById("next-month")?.addEventListener("click", () => {
         calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1);
         renderCalendar(globalPeriodsCache);
     });
@@ -121,14 +139,15 @@ form.addEventListener("submit", async (e) => {
             await upsertDailyLog(selectedDate, selectedFlow, selectedSeverity, selectedMood, symptomsVal);
         } 
         else if (selectedAction === "end") {
-            const latestOpen = globalPeriodsCache.find(p => !p.end_date);
-            if (!latestOpen) {
-                alert("No active period found without an end date. Please log a 'Start Date' first!");
+            // Find active period without end date, or fall back to most recent period
+            let targetPeriod = globalPeriodsCache.find(p => !p.end_date) || globalPeriodsCache[0];
+            if (!targetPeriod) {
+                alert("No period record found. Please log a 'Start Date' first!");
             } else {
                 const { error } = await db
                     .from('periods')
                     .update({ end_date: selectedDate })
-                    .eq('id', latestOpen.id);
+                    .eq('id', targetPeriod.id);
                 if (error) throw error;
             }
         } 
@@ -137,7 +156,12 @@ form.addEventListener("submit", async (e) => {
         }
 
         form.reset();
-        singleDateInput.value = new Date().toISOString().split('T')[0];
+        const today = getTodayLocalDate();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        singleDateInput.value = `${yyyy}-${mm}-${dd}`;
+        
         if (symptomsInput) symptomsInput.value = "";
         await fetchAndRenderData();
     } catch (err) {
@@ -178,8 +202,10 @@ async function fetchAndRenderData() {
         renderUI(globalPeriodsCache, globalDailyLogsCache);
         renderCalendar(globalPeriodsCache);
     } catch (err) {
-        historyList.innerHTML = `<li class="empty-state" style="color:red; text-align:center;">Failed to load data: ${err.message || err}</li>`;
-        currentPhaseEl.textContent = "Error";
+        if (historyList) {
+            historyList.innerHTML = `<li class="empty-state" style="color:red; text-align:center;">Failed to load data: ${err.message || err}</li>`;
+        }
+        if (currentPhaseEl) currentPhaseEl.textContent = "Error";
     }
 }
 
@@ -197,7 +223,6 @@ window.deleteLog = async function(id) {
     else fetchAndRenderData();
 }
 
-// Highly accurate metric calculation based on actual historical end dates & non-bleeding gaps
 function getCycleMetrics(periods) {
     let bleedingDaysArr = [];
     let nonBleedingDaysArr = [];
@@ -205,8 +230,8 @@ function getCycleMetrics(periods) {
     for (let i = 0; i < periods.length; i++) {
         const p = periods[i];
         if (p.start_date && p.end_date) {
-            const start = new Date(p.start_date).setHours(0,0,0,0);
-            const end = new Date(p.end_date).setHours(0,0,0,0);
+            const start = parseLocalDate(p.start_date);
+            const end = parseLocalDate(p.end_date);
             const bleedLen = Math.round((end - start) / 86400000) + 1;
             if (bleedLen > 0 && bleedLen <= 15) bleedingDaysArr.push(bleedLen);
         }
@@ -215,8 +240,8 @@ function getCycleMetrics(periods) {
             const curr = periods[i];
             const prev = periods[i+1];
             if (prev.end_date && curr.start_date) {
-                const prevEnd = new Date(prev.end_date).setHours(0,0,0,0);
-                const currStart = new Date(curr.start_date).setHours(0,0,0,0);
+                const prevEnd = parseLocalDate(prev.end_date);
+                const currStart = parseLocalDate(curr.start_date);
                 const gap = Math.round((currStart - prevEnd) / 86400000) - 1;
                 if (gap >= 10 && gap <= 40) nonBleedingDaysArr.push(gap);
             }
@@ -231,19 +256,19 @@ function getCycleMetrics(periods) {
 
 function formatDateString(dateStr) {
     if (!dateStr) return "Ongoing 🔄";
-    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return parseLocalDate(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function formatFullDate(dateStr) {
     if (!dateStr) return "Ongoing 🔄";
-    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    return parseLocalDate(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function renderUI(periods, logs) {
-    historyList.innerHTML = "";
+    if (historyList) historyList.innerHTML = "";
     
     if ((!periods || periods.length === 0) && (!logs || logs.length === 0)) {
-        historyList.innerHTML = `<li class="empty-state" style="text-align:center; padding:20px; color:#64748b;">No cycle data found.</li>`;
+        if (historyList) historyList.innerHTML = `<li class="empty-state" style="text-align:center; padding:20px; color:#64748b;">No cycle data found.</li>`;
         currentPhaseEl.textContent = "No Data";
         currentDayEl.textContent = "-";
         nextPeriodDateEl.textContent = "-";
@@ -262,7 +287,7 @@ function renderUI(periods, logs) {
             </div>
             <button class="delete-btn" onclick="deletePeriod('${p.id}')">Delete</button>
         `;
-        historyList.appendChild(li);
+        if (historyList) historyList.appendChild(li);
     });
 
     logs.forEach((l) => {
@@ -281,56 +306,47 @@ function renderUI(periods, logs) {
             <div class="history-details"><div class="tags">${tagsHtml}</div></div>
             <button class="delete-btn" onclick="deleteLog('${l.id}')">Delete</button>
         `;
-        historyList.appendChild(li);
+        if (historyList) historyList.appendChild(li);
     });
 
     if (!periods || periods.length === 0) return;
 
     const latestPeriod = periods[0];
     const { avgBleeding, avgNonBleeding } = getCycleMetrics(periods);
-    const lastStart = new Date(latestPeriod.start_date);
+    const lastStart = parseLocalDate(latestPeriod.start_date);
+    const today = getTodayLocalDate();
 
-    // Indonesian time (WIB / UTC+7) adjustment
-    const nowUtc = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
-    const idTime = new Date(nowUtc + (3600000 * 7)); 
-    idTime.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - lastStart.getTime();
+    const currentDay = Math.max(Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1, 1);
 
-    const lastStartLocal = new Date(lastStart);
-    lastStartLocal.setHours(0, 0, 0, 0);
-
-    const diffTime = idTime.getTime() - lastStartLocal.getTime();
-    const currentDay = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
+    const hasEndDate = Boolean(latestPeriod.end_date);
     let bleedingDays;
-    let isOngoing = !latestPeriod.end_date;
-    
-    if (isOngoing) {
-        // If period hasn't ended, bleeding days stretch dynamically, delaying the next cycle
-        bleedingDays = Math.max(currentDay, avgBleeding); 
+    let isBleedingNow;
+
+    if (hasEndDate) {
+        const lastEnd = parseLocalDate(latestPeriod.end_date);
+        bleedingDays = Math.max(Math.round((lastEnd - lastStart) / 86400000) + 1, 1);
+        // Bleeding is active only if today is strictly before or on the end date
+        isBleedingNow = today <= lastEnd;
     } else {
-        const leLocal = new Date(latestPeriod.end_date);
-        leLocal.setHours(0, 0, 0, 0);
-        bleedingDays = Math.max(Math.round((leLocal.getTime() - lastStartLocal.getTime()) / 86400000) + 1, 1);
+        // Ongoing period without end date
+        bleedingDays = Math.max(currentDay, avgBleeding);
+        isBleedingNow = true;
     }
 
-    // Dynamic Cycle Length: Actual/Ongoing Bleeding length + Historical Non-Bleeding Gap
     const projectedCycleLength = bleedingDays + avgNonBleeding;
     const estimatedOvulationDay = Math.max(projectedCycleLength - 14, bleedingDays + 1);
 
     let currentPhaseKey = "";
     let phaseTitleText = "";
 
-    // Force Menstrual Phase if end date is missing (ongoing), otherwise use accurate math
-    if (currentDay < 1) {
+    currentDayEl.textContent = `Day ${currentDay}`;
+
+    if (isBleedingNow) {
         phaseTitleText = "Menstrual Phase";
-        currentDayEl.textContent = "Day 1";
         currentPhaseKey = "menstrual";
     } else {
-        currentDayEl.textContent = `Day ${currentDay}`;
-        if (isOngoing || currentDay <= bleedingDays) {
-            phaseTitleText = "Menstrual Phase";
-            currentPhaseKey = "menstrual";
-        } else if (currentDay < estimatedOvulationDay - 3) {
+        if (currentDay < estimatedOvulationDay - 3) {
             phaseTitleText = "Follicular Phase";
             currentPhaseKey = "follicular";
         } else if (currentDay >= estimatedOvulationDay - 3 && currentDay <= estimatedOvulationDay + 1) {
@@ -348,51 +364,59 @@ function renderUI(periods, logs) {
     const nextPeriodDate = new Date(lastStart);
     nextPeriodDate.setDate(nextPeriodDate.getDate() + projectedCycleLength);
     
-    const nextPeriodLocal = new Date(nextPeriodDate).setHours(0, 0, 0, 0);
-    const daysUntilNext = Math.max(Math.round((nextPeriodLocal - idTime.getTime()) / (1000 * 60 * 60 * 24)), 0);
+    const daysUntilNext = Math.max(Math.round((nextPeriodDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)), 0);
     nextPeriodDateEl.textContent = `${daysUntilNext} Days`;
-    nextPeriodCountdownEl.textContent = formatDateString(nextPeriodDate);
+    
+    const yyyy = nextPeriodDate.getFullYear();
+    const mm = String(nextPeriodDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(nextPeriodDate.getDate()).padStart(2, '0');
+    nextPeriodCountdownEl.textContent = formatDateString(`${yyyy}-${mm}-${dd}`);
 
     const ovulationDate = new Date(nextPeriodDate);
     ovulationDate.setDate(ovulationDate.getDate() - 14);
+    
     const fertileStart = new Date(ovulationDate);
     fertileStart.setDate(ovulationDate.getDate() - 2);
     const fertileEnd = new Date(ovulationDate);
     fertileEnd.setDate(ovulationDate.getDate() + 2);
 
-    ovulationWindowEl.textContent = `${formatDateString(fertileStart)} – ${formatDateString(fertileEnd)}`;
+    const formatShort = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    ovulationWindowEl.textContent = `${formatShort(fertileStart)} – ${formatShort(fertileEnd)}`;
 
-    const todayString = idTime.toISOString().split('T')[0];
-    const todayLog = logs.find(l => l.log_date === todayString);
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const todayLog = logs.find(l => l.log_date === todayStr);
     renderDynamicTips(currentPhaseKey, todayLog);
 }
 
 function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) {
     if (!svgPhaseSegmentsEl) return;
     svgPhaseSegmentsEl.innerHTML = "";
+    svgPhaseSegmentsEl.style.transform = "none"; // Clear conflicting inline CSS transforms
 
     const radius = 95;
     const circumference = 2 * Math.PI * radius;
-    
-    const p1End = bleedingDays;                             
-    const p2End = ovulationDay - 3;                         
-    const p3End = ovulationDay + 1;                         
-    const p4End = totalDays;                                
+
+    // Unified rotation group: 0 degrees is now strictly top-center (12 o'clock)
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("transform", "rotate(-90 110 110)");
+
+    const p1End = Math.min(bleedingDays, totalDays);
+    const p2End = Math.min(Math.max(p1End, ovulationDay - 3), totalDays);
+    const p3End = Math.min(Math.max(p2End + 1, ovulationDay + 2), totalDays);
+    const p4End = totalDays;
 
     const phases = [
-        { start: 0, end: p1End, color: "#e11d48" },         
-        { start: p1End, end: p2End, color: "#38bdf8" },     
-        { start: p2End, end: p3End, color: "#ec4899" },     
-        { start: p3End, end: p4End, color: "#8b5cf6" }      
+        { start: 0, end: p1End, color: "#e11d48" },         // Menstrual Phase (Red)
+        { start: p1End, end: p2End, color: "#38bdf8" },     // Follicular Phase (Blue)
+        { start: p2End, end: p3End, color: "#ec4899" },     // Ovulation Phase (Pink)
+        { start: p3End, end: p4End, color: "#8b5cf6" }      // Luteal Phase (Purple)
     ];
 
     phases.forEach(p => {
-        let safeStart = Math.min(p.start, totalDays);
-        let safeEnd = Math.min(p.end, totalDays);
-        if (safeEnd <= safeStart) return;
+        if (p.end <= p.start) return;
 
-        const lengthFraction = (safeEnd - safeStart) / totalDays;
-        const offsetFraction = safeStart / totalDays;
+        const lengthFraction = (p.end - p.start) / totalDays;
+        const offsetFraction = p.start / totalDays;
 
         const strokeLen = lengthFraction * circumference;
         const strokeDasharray = `${strokeLen} ${circumference - strokeLen}`;
@@ -408,15 +432,14 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
         circle.setAttribute("stroke-dasharray", strokeDasharray);
         circle.setAttribute("stroke-dashoffset", strokeDashoffset);
         circle.setAttribute("stroke-linecap", "round");
-        // Rotates the circle -90 degrees so phase 1 starts cleanly at 12 o'clock
-        circle.setAttribute("transform", "rotate(-90 110 110)");
-        svgPhaseSegmentsEl.appendChild(circle);
+        g.appendChild(circle);
     });
 
+    // Dot positioning calculation inside rotated group space
     const safeDay = Math.min(Math.max(currentDay, 1), totalDays);
-    const angleFraction = (safeDay - 0.5) / totalDays;
-    // Adjust dot coordinate math for -90 degrees offset (-Math.PI/2)
-    const angle = angleFraction * 2 * Math.PI - (Math.PI / 2);
+    const angleFraction = safeDay / totalDays;
+    const angle = angleFraction * 2 * Math.PI;
+
     const dotX = 110 + radius * Math.cos(angle);
     const dotY = 110 + radius * Math.sin(angle);
 
@@ -427,7 +450,9 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
     dot.setAttribute("fill", "#ffffff");
     dot.setAttribute("stroke", "#e11d48");
     dot.setAttribute("stroke-width", "4");
-    svgPhaseSegmentsEl.appendChild(dot);
+    g.appendChild(dot);
+
+    svgPhaseSegmentsEl.appendChild(g);
 }
 
 function renderDynamicTips(phase, todayLog) {
@@ -460,7 +485,7 @@ function renderCalendar(periods) {
     const year = calendarCurrentDate.getFullYear();
     const month = calendarCurrentDate.getMonth();
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    monthYearEl.textContent = `${monthNames[month]} ${year}`;
+    if (monthYearEl) monthYearEl.textContent = `${monthNames[month]} ${year}`;
 
     const firstDayIndex = new Date(year, month, 1).getDay();
     const adjustedFirstDay = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
@@ -470,9 +495,8 @@ function renderCalendar(periods) {
         gridEl.appendChild(document.createElement("div"));
     }
 
-    const nowUtc = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
-    const idTime = new Date(nowUtc + (3600000 * 7));
-    const todayStr = idTime.toISOString().split('T')[0];
+    const today = getTodayLocalDate();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const periodDaysSet = new Set();
     const fertileDaysSet = new Set();
@@ -481,13 +505,16 @@ function renderCalendar(periods) {
         const { avgCycleLength } = getCycleMetrics(periods);
         periods.forEach(p => {
             if (!p.start_date) return;
-            let start = new Date(p.start_date);
-            let end = p.end_date ? new Date(p.end_date) : new Date(start);
-            if (!p.end_date) end.setDate(end.getDate() + 6); // visual default for ongoing in calendar
+            let start = parseLocalDate(p.start_date);
+            let end = p.end_date ? parseLocalDate(p.end_date) : new Date(start);
+            if (!p.end_date) end.setDate(end.getDate() + 6);
 
             let curr = new Date(start);
             while (curr <= end) {
-                periodDaysSet.add(curr.toISOString().split('T')[0]);
+                const yyyy = curr.getFullYear();
+                const mm = String(curr.getMonth() + 1).padStart(2, '0');
+                const dd = String(curr.getDate()).padStart(2, '0');
+                periodDaysSet.add(`${yyyy}-${mm}-${dd}`);
                 curr.setDate(curr.getDate() + 1);
             }
 
@@ -502,7 +529,10 @@ function renderCalendar(periods) {
 
             let fCurr = new Date(fStart);
             while (fCurr <= fEnd) {
-                fertileDaysSet.add(fCurr.toISOString().split('T')[0]);
+                const yyyy = fCurr.getFullYear();
+                const mm = String(fCurr.getMonth() + 1).padStart(2, '0');
+                const dd = String(fCurr.getDate()).padStart(2, '0');
+                fertileDaysSet.add(`${yyyy}-${mm}-${dd}`);
                 fCurr.setDate(fCurr.getDate() + 1);
             }
         });
