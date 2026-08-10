@@ -31,7 +31,6 @@ let selectedFlow = "";
 let selectedSeverity = "Mild / None";
 let selectedMood = "Calm & Balanced";
 
-// Helper: Parse YYYY-MM-DD string as pure local midnight to avoid UTC offsets
 function parseLocalDate(dateStr) {
     if (!dateStr) return null;
     const parts = dateStr.split('-');
@@ -39,7 +38,6 @@ function parseLocalDate(dateStr) {
     return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 0, 0, 0, 0);
 }
 
-// Helper: Get today's local midnight date
 function getTodayLocalDate() {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
@@ -139,10 +137,9 @@ form.addEventListener("submit", async (e) => {
             await upsertDailyLog(selectedDate, selectedFlow, selectedSeverity, selectedMood, symptomsVal);
         } 
         else if (selectedAction === "end") {
-            // Find active period without end date, or fall back to most recent period
             let targetPeriod = globalPeriodsCache.find(p => !p.end_date) || globalPeriodsCache[0];
             if (!targetPeriod) {
-                alert("No period record found. Please log a 'Start Date' first!");
+                alert("No active period found. Please log a 'Start Date' first!");
             } else {
                 const { error } = await db
                     .from('periods')
@@ -321,15 +318,16 @@ function renderUI(periods, logs) {
 
     const hasEndDate = Boolean(latestPeriod.end_date);
     let bleedingDays;
-    let isBleedingNow;
+    let isBleedingNow = false;
 
     if (hasEndDate) {
         const lastEnd = parseLocalDate(latestPeriod.end_date);
         bleedingDays = Math.max(Math.round((lastEnd - lastStart) / 86400000) + 1, 1);
-        // Bleeding is active only if today is strictly before or on the end date
-        isBleedingNow = today <= lastEnd;
+        // Phase switches away from Menstrual as soon as currentDay exceeds bleedingDays
+        if (currentDay <= bleedingDays) {
+            isBleedingNow = true;
+        }
     } else {
-        // Ongoing period without end date
         bleedingDays = Math.max(currentDay, avgBleeding);
         isBleedingNow = true;
     }
@@ -391,14 +389,9 @@ function renderUI(periods, logs) {
 function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) {
     if (!svgPhaseSegmentsEl) return;
     svgPhaseSegmentsEl.innerHTML = "";
-    svgPhaseSegmentsEl.style.transform = "none"; // Clear conflicting inline CSS transforms
 
     const radius = 95;
     const circumference = 2 * Math.PI * radius;
-
-    // Unified rotation group: 0 degrees is now strictly top-center (12 o'clock)
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute("transform", "rotate(-90 110 110)");
 
     const p1End = Math.min(bleedingDays, totalDays);
     const p2End = Math.min(Math.max(p1End, ovulationDay - 3), totalDays);
@@ -420,7 +413,7 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
 
         const strokeLen = lengthFraction * circumference;
         const strokeDasharray = `${strokeLen} ${circumference - strokeLen}`;
-        const strokeDashoffset = -offsetFraction * circumference;
+        const strokeDashoffset = -(offsetFraction * circumference);
 
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("cx", "110");
@@ -432,13 +425,14 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
         circle.setAttribute("stroke-dasharray", strokeDasharray);
         circle.setAttribute("stroke-dashoffset", strokeDashoffset);
         circle.setAttribute("stroke-linecap", "round");
-        g.appendChild(circle);
+        circle.setAttribute("transform", "rotate(-90 110 110)");
+        svgPhaseSegmentsEl.appendChild(circle);
     });
 
-    // Dot positioning calculation inside rotated group space
+    // Angle calculation: 0 = 12 o'clock (-Math.PI / 2)
     const safeDay = Math.min(Math.max(currentDay, 1), totalDays);
-    const angleFraction = safeDay / totalDays;
-    const angle = angleFraction * 2 * Math.PI;
+    const angleFraction = (safeDay - 0.5) / totalDays;
+    const angle = (angleFraction * 2 * Math.PI) - (Math.PI / 2);
 
     const dotX = 110 + radius * Math.cos(angle);
     const dotY = 110 + radius * Math.sin(angle);
@@ -450,9 +444,7 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
     dot.setAttribute("fill", "#ffffff");
     dot.setAttribute("stroke", "#e11d48");
     dot.setAttribute("stroke-width", "4");
-    g.appendChild(dot);
-
-    svgPhaseSegmentsEl.appendChild(g);
+    svgPhaseSegmentsEl.appendChild(dot);
 }
 
 function renderDynamicTips(phase, todayLog) {
