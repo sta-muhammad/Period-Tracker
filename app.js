@@ -211,14 +211,14 @@ window.deletePeriod = async function(id) {
     const { error } = await db.from('periods').delete().eq('id', id);
     if (error) alert("Error deleting: " + error.message);
     else fetchAndRenderData();
-}
+};
 
 window.deleteLog = async function(id) {
     if (!confirm("Delete this daily log?")) return;
     const { error } = await db.from('daily_logs').delete().eq('id', id);
     if (error) alert("Error deleting: " + error.message);
     else fetchAndRenderData();
-}
+};
 
 function getCycleMetrics(periods) {
     let bleedingDaysArr = [];
@@ -323,9 +323,12 @@ function renderUI(periods, logs) {
     if (hasEndDate) {
         const lastEnd = parseLocalDate(latestPeriod.end_date);
         bleedingDays = Math.max(Math.round((lastEnd - lastStart) / 86400000) + 1, 1);
-        // Phase switches away from Menstrual as soon as currentDay exceeds bleedingDays
-        if (currentDay <= bleedingDays) {
+        
+        // Immediately end bleeding phase if today reaches or passes end_date
+        if (today < lastEnd) {
             isBleedingNow = true;
+        } else {
+            isBleedingNow = false;
         }
     } else {
         bleedingDays = Math.max(currentDay, avgBleeding);
@@ -429,7 +432,6 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
         svgPhaseSegmentsEl.appendChild(circle);
     });
 
-    // Angle calculation: 0 = 12 o'clock (-Math.PI / 2)
     const safeDay = Math.min(Math.max(currentDay, 1), totalDays);
     const angleFraction = (safeDay - 0.5) / totalDays;
     const angle = (angleFraction * 2 * Math.PI) - (Math.PI / 2);
