@@ -322,10 +322,11 @@ function renderUI(periods, logs) {
 
     if (hasEndDate) {
         const lastEnd = parseLocalDate(latestPeriod.end_date);
+        // Calculate strict total bleeding days from start_date to end_date
         bleedingDays = Math.max(Math.round((lastEnd - lastStart) / 86400000) + 1, 1);
         
-        // Immediately end bleeding phase if today reaches or passes end_date
-        if (today < lastEnd) {
+        // Active bleeding stops on dates AFTER end_date
+        if (today <= lastEnd) {
             isBleedingNow = true;
         } else {
             isBleedingNow = false;
@@ -432,6 +433,7 @@ function renderPhaseClockSVG(currentDay, totalDays, bleedingDays, ovulationDay) 
         svgPhaseSegmentsEl.appendChild(circle);
     });
 
+    // Calculates white dot location precisely along the current day's arc segment
     const safeDay = Math.min(Math.max(currentDay, 1), totalDays);
     const angleFraction = (safeDay - 0.5) / totalDays;
     const angle = (angleFraction * 2 * Math.PI) - (Math.PI / 2);
@@ -500,8 +502,16 @@ function renderCalendar(periods) {
         periods.forEach(p => {
             if (!p.start_date) return;
             let start = parseLocalDate(p.start_date);
-            let end = p.end_date ? parseLocalDate(p.end_date) : new Date(start);
-            if (!p.end_date) end.setDate(end.getDate() + 6);
+            let end;
+
+            // Strictly mark period days ONLY up to end_date
+            if (p.end_date) {
+                end = parseLocalDate(p.end_date);
+            } else {
+                let defaultEnd = new Date(start);
+                defaultEnd.setDate(defaultEnd.getDate() + 5);
+                end = (today < defaultEnd) ? today : defaultEnd;
+            }
 
             let curr = new Date(start);
             while (curr <= end) {
