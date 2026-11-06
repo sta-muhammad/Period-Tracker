@@ -1,178 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ifah - Cycle & Wellness Tracker</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f9f6f3">
+  <meta name="description" content="Ifah — your gentle, personal cycle and wellness tracker.">
+  <title>Ifah — Cycle & Wellness</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="forecast.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <body>
+  <svg class="svg-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="ic-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/></symbol>
+    <symbol id="ic-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 10h18"/></symbol>
+    <symbol id="ic-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
+    <symbol id="ic-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M7 17v-5M12 17V7M17 17v-8"/></symbol>
+    <symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="ic-settings" viewBox="0 0 24 24"><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="ic-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="ic-arrow" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol>
+    <symbol id="ic-heart" viewBox="0 0 24 24"><path d="M20.8 5.6c-2.7-3-6.1-1.5-8.8 1.6-2.7-3.1-6.1-4.6-8.8-1.6-3.3 3.6 1.1 8.1 8.8 14.4 7.7-6.3 12.1-10.8 8.8-14.4Z"/></symbol>
+    <symbol id="ic-sparkle" viewBox="0 0 24 24"><path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3L12 3Z"/></symbol>
+    <symbol id="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M21 13.5A8.5 8.5 0 0 1 10.5 3 8.5 8.5 0 1 0 21 13.5Z"/></symbol>
+    <symbol id="ic-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6M4 13a8 8 0 0 0 14 5l3-3m0 6v-6h-6"/></symbol>
+    <symbol id="ic-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="ic-edit" viewBox="0 0 24 24"><path d="M12 20h9M16 4l4 4L9 19l-5 1 1-5L16 4Z"/></symbol>
+    <symbol id="ic-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/></symbol>
+    <symbol id="ic-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+    <symbol id="ic-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  </svg>
 
-    <div class="app-container">
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="brand"><div class="brand-logo" aria-hidden="true">✿</div><div class="brand-copy"><strong>Ifah</strong><span>cycle & wellness</span></div></div>
+      <div class="header-actions">
+        <span class="sync-status" id="sync-status"><span class="sync-dot"></span> Connecting</span>
+        <button id="refresh-button" class="icon-btn" type="button" title="Refresh Supabase data" aria-label="Refresh data"><svg class="icon"><use href="#ic-refresh"/></svg></button>
+        <button id="theme-button" class="icon-btn" type="button" title="Toggle light and dark mode" aria-label="Toggle theme"><svg class="icon"><use href="#ic-moon"/></svg></button>
+      </div>
+    </header>
 
-        <!-- VIEW 1: DASHBOARD -->
-        <section id="view-dashboard" class="view-section active">
-            
-            <!-- Circular Ring Hero Card with Multi-Colored 4-Phase SVG Clock -->
-            <div class="dashboard-header" style="padding: 16px 20px 8px 20px; text-align: left;">
-   
-                <h1 style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin: 0;">Welcome back, Ifah ✨</h1>
-                <p style="font-size: 0.9rem; color: #64748b; margin: 4px 0 0 0;">Your daily wellness dashboard</p>
+    <div class="demo-banner" id="demo-banner" hidden><strong>Preview mode.</strong> This is sample data; changes are not saved to Supabase. <a href="./">Return to live app</a></div>
+    <div class="connection-banner" id="connection-banner" hidden role="alert"><span id="connection-message">Could not load Supabase records.</span><button id="retry-button" type="button">Retry</button></div>
+
+    <main id="main">
+      <!-- HOME -->
+      <section class="view active" id="view-home" aria-labelledby="home-title">
+        <div class="greeting"><div><p class="eyebrow" id="today-label">YOUR DAILY COMPANION</p><h1 id="home-title">Hello, Ifah <span class="greeting-flower">✿</span></h1><p class="intro">A little more in tune with yourself, every day.</p></div><button type="button" class="history-link desktop-only" data-go="history"><svg class="icon"><use href="#ic-clock"/></svg> View history</button></div>
+        <div class="home-grid">
+          <div class="home-main">
+            <article class="cycle-card">
+              <div class="hero-head"><span class="eyebrow hero-eyebrow"><svg class="icon mini"><use href="#ic-sparkle"/></svg> YOUR CYCLE RIGHT NOW</span><span class="phase-pill" id="phase-pill">Loading…</span></div>
+              <div class="hero-content">
+                <div class="ring-box"><svg class="cycle-ring" viewBox="0 0 208 208" aria-hidden="true"><circle class="ring-track" cx="104" cy="104" r="84"/><circle class="ring-progress" id="cycle-progress" cx="104" cy="104" r="84"/></svg><div class="ring-number"><span>CYCLE DAY</span><strong id="cycle-day">—</strong><small id="cycle-of">Awaiting records</small></div></div>
+                <div class="hero-text"><span class="eyebrow subdued">ESTIMATED PHASE</span><h2 id="phase-title">Your story starts here</h2><p id="phase-explanation">Your logged cycle history will guide this summary.</p><button class="text-action" data-go="calendar" type="button">Explore calendar <svg class="icon mini"><use href="#ic-chevron"/></svg></button></div>
+              </div>
+              <div class="hero-footer"><svg class="icon mini"><use href="#ic-info"/></svg><span>Phase and ovulation timing are estimates, not confirmed observations.</span></div>
+            </article>
+            <div class="summary-pair">
+              <article class="summary-card"><div class="summary-top"><span>Next period</span><span class="summary-icon rose"><svg class="icon"><use href="#ic-calendar"/></svg></span></div><strong id="period-value">—</strong><p id="period-detail">Add period starts to forecast</p><span id="forecast-reliability" class="detail-label">Based on your history</span></article>
+              <article class="summary-card"><div class="summary-top"><span>Mood outlook</span><span class="summary-icon lavender"><svg class="icon"><use href="#ic-heart"/></svg></span></div><strong id="mood-value">Still learning</strong><p id="mood-detail">Log a few moods to see patterns.</p><span id="mood-evidence" class="detail-label">Personal observations only</span></article>
             </div>
-            
-            <div class="card hero-ring-card">
-                <div class="ring-container">
-                    <svg class="phase-clock-svg" viewBox="0 0 220 220">
-                        <!-- Background track -->
-                        <circle cx="110" cy="110" r="95" fill="none" stroke="#f1f5f9" stroke-width="12"></circle>
-                        <!-- Dynamic Multi-Phase Segments & Indicator Marker inserted via JS -->
-                        <g id="svg-phase-segments"></g>
-                    </svg>
-                    <div class="ring-content">
-                        <span id="current-phase" class="phase-badge">Loading...</span>
-                        <h2 id="current-day" class="days-display">-</h2>
-                        <button class="view-cycle-btn" onclick="switchView('calendar', document.querySelectorAll('.nav-item')[1])">
-                            View cycle <span>›</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <article class="content-card mood-checkin"><div class="section-head"><div><span class="eyebrow">A MOMENT FOR YOU</span><h2>How are you feeling?</h2></div><span class="daisy-small" aria-hidden="true">✳</span></div><div class="mood-quick" id="quick-moods"><button type="button" data-mood="Happy"><span>😊</span><small>Happy</small></button><button type="button" data-mood="Calm & Balanced"><span>😌</span><small>Calm</small></button><button type="button" data-mood="Anxious / Stressed"><span>😟</span><small>Stressed</small></button><button type="button" data-mood="Irritable"><span>😣</span><small>Irritable</small></button><button type="button" data-mood="Fatigued"><span>😴</span><small>Tired</small></button></div><div class="card-bottom"><span id="todays-entry">No check-in recorded today</span><button type="button" class="subtle-link" data-go="log">Open full check-in <span aria-hidden="true">↗</span></button></div></article>
+          </div>
+          <aside class="home-side">
+            <article class="insight-feature"><span class="feature-icon"><svg class="icon"><use href="#ic-sparkle"/></svg></span><span class="eyebrow">A LITTLE INSIGHT</span><h2 id="insight-home-title">Your pattern, your pace.</h2><p id="insight-home-description">With every new cycle, your personal overview grows more meaningful.</p><button type="button" class="text-action" data-go="insights">See your insights <svg class="icon mini"><use href="#ic-chevron"/></svg></button></article>
+            <article class="content-card mini-overview"><span class="eyebrow">AT A GLANCE</span><h2>Your tracking so far</h2><div class="overview-stat"><span>Recorded periods</span><strong id="overview-periods">—</strong></div><div class="overview-stat"><span>Daily check-ins</span><strong id="overview-logs">—</strong></div><div class="overview-stat"><span>Typical cycle</span><strong id="overview-cycle">—</strong></div><button type="button" class="secondary-button full-width" data-go="history">Explore past entries</button></article>
+          </aside>
+        </div>
+        <p class="medical-note">Predictions reflect your logged history and are not a medical diagnosis or a method of contraception.</p>
+      </section>
 
-            <!-- Clickable Info Cards Row (Next Period & Fertile Window) -->
-            <div class="info-cards-grid">
-                <div class="card clickable-card" onclick="switchView('calendar', document.querySelectorAll('.nav-item')[1])">
-                    <div class="card-header-row">
-                        <span class="card-label">Next Period</span>
-                        <div class="card-icon-bubble">📅</div>
-                    </div>
-                    <div class="card-main-value" id="next-period-date">-</div>
-                    <div class="card-sub-value" id="next-period-countdown">-</div>
-                    <div class="dot-indicators">
-                        <span class="active"></span><span></span><span></span><span></span><span></span><span></span>
-                    </div>
-                </div>
+      <!-- CALENDAR -->
+      <section class="view" id="view-calendar" aria-labelledby="calendar-title">
+        <div class="page-heading"><p class="eyebrow">LOOK BACK · LOOK AHEAD</p><h1 id="calendar-title">Your calendar <span class="heading-accent">✿</span></h1><p class="intro">Recorded days and future estimates, clearly distinguished.</p></div>
+        <div class="split-layout"><article class="content-card calendar-card"><div class="calendar-toolbar"><button type="button" class="icon-btn" id="prev-month" aria-label="Previous month"><svg class="icon"><use href="#ic-arrow"/></svg></button><h2 id="calendar-month">—</h2><button type="button" class="icon-btn" id="next-month" aria-label="Next month"><svg class="icon"><use href="#ic-chevron"/></svg></button></div><div class="weekday-row"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div class="calendar-grid" id="calendar-grid" role="grid" aria-label="Monthly cycle calendar"></div><div class="calendar-legend"><span><i class="legend-mark recorded"></i>Recorded</span><span><i class="legend-mark predicted"></i>Period estimate</span><span><i class="legend-mark ovulation"></i>Phase estimate</span><span><i class="legend-mark with-log"></i>Daily log</span></div></article><aside class="calendar-aside"><article class="content-card selected-card"><span class="eyebrow">SELECTED DAY</span><h2 id="selected-day-heading">—</h2><div id="selected-day-content" class="selected-day-content"><p class="muted">Select a date to see its details.</p></div><button class="primary-button full-width" id="edit-selected-day" type="button">Log or edit this day</button></article><article class="quiet-card"><svg class="icon"><use href="#ic-info"/></svg><p>Calendar-based ovulation estimates cannot confirm fertility and should not be used to avoid pregnancy.</p></article></aside></div>
+      </section>
 
-                <div class="card clickable-card" onclick="switchView('calendar', document.querySelectorAll('.nav-item')[1])">
-                    <div class="card-header-row">
-                        <span class="card-label">Fertile Window</span>
-                        <div class="card-icon-bubble pink-bubble">🌷</div>
-                    </div>
-                    <div class="card-main-value" id="ovulation-window">-</div>
-                    <div class="card-sub-value">High chance</div>
-                    <div class="dot-indicators">
-                        <span class="active"></span><span></span><span></span><span></span><span></span><span></span>
-                    </div>
-                </div>
-            </div>
+      <!-- DAILY LOG -->
+      <section class="view" id="view-log" aria-labelledby="log-title">
+        <div class="page-heading"><p class="eyebrow">YOUR DAILY CHECK-IN</p><h1 id="log-title">Make space for today.</h1><p class="intro">Only share what you feel like tracking. Everything is optional except the date.</p></div>
+        <div class="split-layout form-layout">
+          <div class="left-form-col"><form id="daily-form" class="content-card entry-form"><div class="form-top"><div><h2>How was your day?</h2><p class="muted">Takes less than a minute.</p></div><span class="form-sparkle" aria-hidden="true">✦</span></div><label class="field-label" for="log-date">Date of check-in</label><input class="input-control" id="log-date" type="date" required><p id="log-existing" class="input-hint" aria-live="polite">Select a date to begin.</p>
+            <fieldset class="field-set"><legend>Mood <small>Choose one</small></legend><div class="choice-list" id="mood-choices"><button type="button" data-value="Happy">😊 Happy</button><button type="button" data-value="Calm & Balanced">😌 Calm</button><button type="button" data-value="Anxious / Stressed">😟 Stressed</button><button type="button" data-value="Irritable">😣 Irritable</button><button type="button" data-value="Fatigued">😴 Tired</button></div><button type="button" class="clear-choice" data-clear="mood">Clear mood</button><p id="mood-legacy-note" class="input-hint" hidden></p></fieldset>
+            <fieldset class="field-set"><legend>Flow intensity <small>Choose one</small></legend><div class="choice-list" id="flow-choices"><button type="button" data-value="None">None</button><button type="button" data-value="Spotting">Spotting</button><button type="button" data-value="Light">Light</button><button type="button" data-value="Normal">Normal</button><button type="button" data-value="Heavy">Heavy</button></div><button type="button" class="clear-choice" data-clear="flow">Clear flow</button><p id="flow-legacy-note" class="input-hint" hidden></p></fieldset>
+            <fieldset class="field-set"><legend>Cramps / pain <small>Choose one</small></legend><div class="choice-list" id="severity-choices"><button type="button" data-value="Mild / None">Mild / none</button><button type="button" data-value="Moderate">Moderate</button><button type="button" data-value="Severe">Severe</button></div><button type="button" class="clear-choice" data-clear="severity">Clear pain</button><p id="severity-legacy-note" class="input-hint" hidden></p></fieldset>
+            <fieldset class="field-set"><legend>Other symptoms <small>Any that apply</small></legend><div class="choice-list multi" id="symptom-choices"><button type="button" data-value="Headache">Headache</button><button type="button" data-value="Bloating">Bloating</button><button type="button" data-value="Back pain">Back pain</button><button type="button" data-value="Cravings">Cravings</button><button type="button" data-value="Acne">Acne</button><button type="button" data-value="Breast tenderness">Breast tenderness</button><button type="button" data-value="Low energy">Low energy</button><button type="button" data-value="Trouble sleeping">Trouble sleeping</button></div></fieldset>
+            <label class="field-label note-label" for="symptoms-notes">Anything else?</label><textarea id="symptoms-notes" class="input-control" rows="3" maxlength="1800" placeholder="A note to yourself, or other symptoms…"></textarea><p class="input-hint">Older symptoms are automatically loaded for editing; no new database columns are needed.</p>
+            <button type="submit" class="primary-button full-width" id="save-daily">Save check-in <svg class="icon mini"><use href="#ic-check"/></svg></button><p id="log-status" class="form-status" role="status" aria-live="polite"></p>
+          </form></div>
+          <aside class="form-aside"><article class="content-card period-form"><span class="eyebrow">PERIOD DATES</span><h2>Track a cycle</h2><p class="muted">Record when bleeding begins or ends. This helps keep predictions accurate.</p><label class="field-label" for="period-action-date">Select date</label><input class="input-control" id="period-action-date" type="date"><div class="period-action-buttons"><button type="button" class="secondary-button" id="record-start">+ Period started</button><button type="button" class="secondary-button" id="record-end">✓ Period ended</button></div><p id="period-status" class="input-hint" aria-live="polite"></p></article><div class="quiet-card"><svg class="icon"><use href="#ic-sparkle"/></svg><p>Small, consistent check-ins help reveal your unique patterns over time.</p></div></aside>
+        </div>
+      </section>
 
-            <!-- Daily Wellness Tip Banner -->
-            <div id="tips-card" class="card wellness-tip-card">
-                <div class="tip-content-wrapper">
-                    <div class="tip-header-row">
-                        <span class="tip-badge">✨ Wellness Tip</span>
-                    </div>
-                    <h3 class="tip-title">Hydrate, nourish, & glow.</h3>
-                    <p id="phase-tips-content" class="tip-text">Loading wellness recommendations...</p>
-                </div>
-            </div>
+      <!-- INSIGHTS -->
+      <section class="view" id="view-insights" aria-labelledby="insights-title"><div class="page-heading"><p class="eyebrow">THE BIGGER PICTURE</p><h1 id="insights-title">Your insights <span class="heading-accent">✿</span></h1><p class="intro">Real observations, gentle patterns, and the details behind every estimate.</p></div>
+        <div class="stats-grid"><article class="stat-box"><span>Typical cycle length</span><strong id="stat-cycle">—</strong><small>Based on start-to-start intervals</small></article><article class="stat-box"><span>Typical period length</span><strong id="stat-bleed">—</strong><small>From completed periods</small></article><article class="stat-box"><span>Cycle variation</span><strong id="stat-variation">—</strong><small>Observed range between cycles</small></article><article class="stat-box"><span>Daily check-ins</span><strong id="stat-checkins">—</strong><small>Total logged days</small></article></div>
+        <div class="insights-grid"><article class="content-card insight-chart-card"><div class="section-head"><div><span class="eyebrow">YOUR LAST CYCLES</span><h2>Cycle length over time</h2></div></div><div id="cycle-chart" class="cycle-bars"><p class="muted">Keep tracking to see your trend.</p></div><p class="chart-footnote" id="cycle-chart-note"></p></article><article class="content-card insight-chart-card"><div class="section-head"><div><span class="eyebrow">HOW YOU'VE BEEN FEELING</span><h2>Recorded moods</h2></div></div><div id="mood-chart" class="mood-bars"><p class="muted">Log moods to see your history.</p></div><p class="chart-footnote">Shows what you recorded, not an assumed or diagnosed state.</p></article><article class="content-card insight-detail-card"><span class="eyebrow">NEXT PERIOD FORECAST</span><h2 id="insight-forecast-title">Learning your cycle</h2><p id="insight-forecast-text" class="muted">Log at least two starts to begin.</p><div class="insight-metric" id="insight-forecast-reliability">Prediction reliability: insufficient data</div><p class="chart-footnote">Forecast ranges indicate variability, not a statistical guarantee.</p></article><article class="content-card insight-detail-card"><span class="eyebrow">MOOD & CYCLE PATTERNS</span><h2 id="insight-mood-title">Still learning</h2><p id="insight-mood-text" class="muted">Consistent mood check-ins help us find patterns.</p><div class="insight-metric" id="insight-mood-evidence">Personalized outlook requires more history.</div><p class="chart-footnote">Many things affect mood. Patterns are correlations, never promises.</p></article></div>
+        <div class="content-card history-jump"><div><h2>Your full story, always here</h2><p class="muted">Search past periods, review daily logs, and correct entries.</p></div><button type="button" class="secondary-button" data-go="history">Open history <svg class="icon mini"><use href="#ic-chevron"/></svg></button></div>
+      </section>
 
-            <!-- Modern Interactive Logging Form -->
-            <div class="card form-card">
-                <h3 class="section-heading">Log Today's Update</h3>
-                <form id="period-form">
-                    <div class="form-group">
-                        <label id="date-label">Entry Type</label>
-                        <select id="action-type">
-                            <option value="daily">📝 Daily Check-in (Symptoms & Mood)</option>
-                            <option value="start">🩸 Period Start Date</option>
-                            <option value="end">🏁 Period End Date</option>
-                        </select>
-                    </div>
+      <!-- HISTORY -->
+      <section class="view" id="view-history" aria-labelledby="history-title"><div class="page-heading"><p class="eyebrow">LOOK HOW FAR YOU'VE COME</p><h1 id="history-title">Your history</h1><p class="intro">All your existing records, available to review and edit.</p></div><div class="history-top"><div class="history-pills"><button class="tab-pill active" type="button" data-history="periods" aria-pressed="true">Period history</button><button class="tab-pill" type="button" data-history="logs" aria-pressed="false">Daily check-ins</button></div><label class="search-label" for="history-search"><svg class="icon mini"><use href="#ic-list"/></svg><input id="history-search" type="search" placeholder="Search past entries" aria-label="Search past entries"></label></div><div id="history-list" class="history-list" aria-live="polite"></div><p class="medical-note">Edits and deletions affect your existing Supabase data. Double-check dates before saving.</p></section>
+    </main>
 
-                    <div class="form-group">
-                        <label>Select Date</label>
-                        <input type="date" id="single-date" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Flow Intensity</label>
-                        <div class="chip-group" id="flow-chips">
-                            <div class="chip selected" data-value="">None</div>
-                            <div class="chip" data-value="Spotting">Spotting</div>
-                            <div class="chip" data-value="Light">Light</div>
-                            <div class="chip" data-value="Normal">Normal</div>
-                            <div class="chip" data-value="Heavy">Heavy</div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cramps / Body Pain</label>
-                        <div class="chip-group" id="severity-chips">
-                            <div class="chip selected" data-value="Mild / None">Mild/None</div>
-                            <div class="chip" data-value="Moderate">Moderate</div>
-                            <div class="chip" data-value="Severe">Severe</div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Mood</label>
-                        <div class="chip-group" id="mood-chips">
-                            <div class="chip selected" data-value="Calm & Balanced">Calm 🌸</div>
-                            <div class="chip" data-value="Happy">Happy 😊</div>
-                            <div class="chip" data-value="Anxious / Stressed">Stressed 🌧️</div>
-                            <div class="chip" data-value="Irritable">Irritable ⚡</div>
-                            <div class="chip" data-value="Fatigued">Fatigued 😴</div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Other Symptoms</label>
-                        <input type="text" id="symptoms-input" placeholder="e.g., headache, bloating">
-                    </div>
-
-                    <button type="submit" id="submit-btn" class="btn-primary">Save Entry</button>
-                </form>
-            </div>
-        </section>
-
-        <!-- VIEW 2: LIVE CALENDAR -->
-        <section id="view-calendar" class="view-section">
-            <h2 class="page-title">Live Calendar</h2>
-            <div class="card">
-                <div class="calendar-header">
-                    <button id="prev-month">&#10094;</button>
-                    <h3 id="cal-month-year" style="font-size: 1rem; color: #1e293b;">August 2026</h3>
-                    <button id="next-month">&#10095;</button>
-                </div>
-                <div class="calendar-weekdays">
-                    <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
-                </div>
-                <div id="calendar-grid" class="calendar-grid"></div>
-                <div style="display: flex; gap: 15px; margin-top: 16px; font-size: 0.75rem; color: var(--text-muted); justify-content: center;">
-                    <span><span style="display:inline-block;width:10px;height:10px;background:var(--primary);border-radius:50%;margin-right:4px;"></span> Period</span>
-                    <span><span style="display:inline-block;width:10px;height:10px;background:#fbcfe8;border-radius:50%;margin-right:4px;"></span> Fertile Window</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- VIEW 3: HISTORY -->
-        <section id="view-history" class="view-section">
-            <h2 class="page-title">Past Logs & Cycles</h2>
-            <div class="card" style="padding: 10px; background: transparent; border: none; box-shadow: none;">
-                <ul id="history-list" class="history-list"></ul>
-            </div>
-        </section>
-
-    </div>
-
-    <!-- Bottom Navigation Bar -->
-    <nav class="bottom-nav">
-        <button class="nav-item active" onclick="switchView('dashboard', this)"><span class="icon">🏠</span>Dashboard</button>
-        <button class="nav-item" onclick="switchView('calendar', this)"><span class="icon">📅</span>Calendar</button>
-        <button class="nav-item" onclick="switchView('history', this)"><span class="icon">🕒</span>History</button>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button type="button" class="nav-link active" data-go="home" aria-current="page"><svg class="icon"><use href="#ic-home"/></svg><span>Home</span></button>
+      <button type="button" class="nav-link" data-go="calendar"><svg class="icon"><use href="#ic-calendar"/></svg><span>Calendar</span></button>
+      <button type="button" class="nav-link add-link" data-go="log"><span class="nav-add"><svg class="icon"><use href="#ic-plus"/></svg></span><span>Log</span></button>
+      <button type="button" class="nav-link" data-go="insights"><svg class="icon"><use href="#ic-chart"/></svg><span>Insights</span></button>
+      <button type="button" class="nav-link" data-go="history"><svg class="icon"><use href="#ic-clock"/></svg><span>History</span></button>
     </nav>
+  </div>
 
-    <script src="app.js"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="edit-period-dialog" class="edit-dialog" aria-labelledby="edit-period-title"><form method="dialog" id="edit-period-form"><h2 id="edit-period-title">Edit period dates</h2><p class="muted">Update this record without deleting its history.</p><input type="hidden" id="edit-period-id"><label for="edit-period-start" class="field-label">Period start</label><input class="input-control" id="edit-period-start" type="date" required><label for="edit-period-end" class="field-label">Period end (leave empty if ongoing)</label><input class="input-control" id="edit-period-end" type="date"><p class="form-status" id="edit-period-error" aria-live="polite"></p><div class="dialog-buttons"><button type="button" class="secondary-button" id="cancel-edit-period">Cancel</button><button type="submit" class="primary-button" id="save-edit-period">Save changes</button></div></form></dialog>
 </body>
 </html>
